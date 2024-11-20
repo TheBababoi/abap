@@ -1,0 +1,105 @@
+DATA: it_spfli TYPE TABLE OF spfli,
+      wa_spfli TYPE spfli.
+
+DATA: it_spflicp TYPE STANDARD TABLE OF spfli,
+      it_changes TYPE STANDARD TABLE OF spfli.
+
+DATA: wa_fieldcat TYPE slis_fieldcat_alv,
+      it_fieldcat TYPE slis_t_fieldcat_alv,
+      ls_layout   TYPE slis_layout_alv.
+
+
+
+SELECT *
+   FROM spfli
+   INTO TABLE  it_spfli.
+
+DATA: lv_index TYPE int1.
+lv_index = 0.
+
+wa_fieldcat-fieldname = 'CARRID'.
+wa_fieldcat-seltext_m = 'Carrid'.
+wa_fieldcat-col_pos = 1 + lv_index.
+wa_fieldcat-outputlen = 10.
+wa_fieldcat-key = 'X'.
+wa_fieldcat-just = 'L'.
+APPEND wa_fieldcat TO it_fieldcat.
+CLEAR wa_fieldcat.
+
+wa_fieldcat-fieldname = 'CONNID'.
+wa_fieldcat-seltext_m = 'Connid'.
+wa_fieldcat-col_pos = 1 + lv_index.
+wa_fieldcat-outputlen = 10.
+wa_fieldcat-key = 'X'.
+wa_fieldcat-just = 'C'.
+APPEND wa_fieldcat TO it_fieldcat.
+CLEAR wa_fieldcat.
+
+wa_fieldcat-fieldname = 'CITYFROM'.
+wa_fieldcat-seltext_m = 'City From'.
+wa_fieldcat-col_pos = 1 + lv_index.
+wa_fieldcat-outputlen = 30.
+wa_fieldcat-just = 'C'.
+wa_fieldcat-edit = 'X'.
+APPEND wa_fieldcat TO it_fieldcat.
+CLEAR wa_fieldcat.
+
+wa_fieldcat-fieldname = 'CITYTO'.
+wa_fieldcat-seltext_m = 'City To'.
+wa_fieldcat-col_pos = 1 + lv_index.
+wa_fieldcat-outputlen = 30.
+wa_fieldcat-just = 'L'.
+APPEND wa_fieldcat TO it_fieldcat.
+CLEAR wa_fieldcat.
+
+it_spflicp[] = it_spfli[].
+ls_layout-zebra = 'X'.
+
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+  EXPORTING
+    i_callback_program = sy-repid
+    i_callback_pf_status_set = 'PF_STATUS_SET'
+    i_callback_user_command = 'USER_COMMAND'
+    is_layout   = ls_layout
+    it_fieldcat = it_fieldcat
+  TABLES
+    t_outtab    = it_spfli.
+
+FORM pf_status_set USING extab TYPE slis_t_extab.
+
+// get an already existing gui status
+
+  SET PF-STATUS 'STANDARD'.                          "go to se80. at repository browser go to program saplkkbl then gui_status , find standard right click copy status change to program to the name of the report
+
+ENDFORM.
+
+FORM f_save_data.
+
+  DATA: wa_spflicp   TYPE spfli,
+        wa_spfli_tmp TYPE spfli.
+
+  CLEAR it_changes[].
+
+  loop at it_spfli into wa_spfli.
+    read table it_spflicp into wa_spflicp INDEX sy-tabix.
+    if wa_spflicp NE wa_spfli.
+      APPEND wa_spfli to it_changes.
+      MOVE-CORRESPONDING wa_spfli to wa_spfli_tmp.
+
+      MODIFY spfli from wa_spfli_tmp.
+      ENDIF.
+
+      CLEAR wa_spflicp.
+      ENDLOOP.
+ENDFORM.
+
+Form user_command using p_ucomm TYPE sy-ucomm
+      p_selfied TYPE slis_selfield.
+
+  case p_ucomm.
+
+    when '&DATA_SAVE'.
+      perform f_save_data.
+      ENDCASE.
+      endform.
