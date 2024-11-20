@@ -1,0 +1,20 @@
+SELECT *
+  INTO TABLE @DATA(it_spfli)
+  FROM spfli.
+
+DATA: o_salv TYPE REF TO cl_salv_table.
+
+" Create SALV object
+cl_salv_table=>factory(
+  IMPORTING
+    r_salv_table = o_salv
+  CHANGING
+    t_table = it_spfli ).
+
+" Set display options
+o_salv->get_display_settings( )->set_striped_pattern( abap_true ).
+o_salv->get_functions( )->set_all( abap_true ).
+o_salv->get_columns( )->set_optimize( abap_true ).
+
+" Display SALV table
+o_salv->display( ).
