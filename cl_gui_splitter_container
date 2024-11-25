@@ -1,0 +1,243 @@
+*&---------------------------------------------------------------------*
+*& Report ZSPLITTER_ALV_REPORTDKP
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZSPLITTER_ALV_REPORTDKP.
+
+***********************************Structure Declaration
+TYPES: BEGIN OF ty_kna1,
+        kunnr TYPE kunnr,
+        land1 TYPE land1_gp,
+        name1 TYPE name1_gp,
+        ort01 TYPE ort01_gp,
+       END OF ty_kna1,
+
+       BEGIN OF ty_vbak,
+         vbeln TYPE vbeln_va,
+         erdat TYPE erdat,
+         erzet TYPE erzet,
+         ernam TYPE ernam,
+         kunnr TYPE kunnr,
+       END OF ty_vbak.
+
+************************************Internal Table and Work area
+DATA: it_kna1 TYPE TABLE OF ty_kna1,
+      wa_kna1 TYPE ty_kna1,
+      it_vbak TYPE TABLE OF ty_vbak,
+      wa_vbak TYPE ty_vbak,
+      lv_kunnr TYPE kunnr,
+      cust_cont TYPE REF TO cl_gui_custom_container,
+      o_cont1 TYPE REF TO cl_gui_container,
+      o_cont2 TYPE REF TO cl_gui_container,
+      kna1_grid TYPE REF TO cl_gui_alv_grid,
+      vbak_grid TYPE REF TO cl_gui_alv_grid,
+      o_split TYPE REF TO cl_gui_splitter_container,
+      it_fcat TYPE lvc_t_fcat,
+      wa_fcat TYPE lvc_s_fcat,
+      it_fcat1 TYPE lvc_t_fcat,
+      wa_fcat1 TYPE lvc_s_fcat,
+      wa_layo TYPE lvc_s_layo,
+      wa_layo1 TYPE lvc_s_layo.
+
+************************************Selection Screen Designing
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME.
+  select-OPTIONS: so_kunnr for lv_kunnr.
+SELECTION-SCREEN END OF BLOCK b1.
+
+START-OF-SELECTION.
+
+CALL SCREEN 100.
+
+MODULE status_0100 OUTPUT.
+ SET PF-STATUS 'BACK'.
+* SET TITLEBAR 'xxx'.
+
+ IF cust_cont IS INITIAL.
+************************************Linking Custom container with custom control
+   CREATE OBJECT cust_cont
+     EXPORTING
+       container_name              = 'CUST_CTRL'.
+
+************************************Linking splitter container with custom container
+   CREATE OBJECT o_split
+     EXPORTING
+       parent            = cust_cont
+       rows              = 1
+       columns           = 2 .
+
+*     CALL METHOD o_split->set_row_height
+*     EXPORTING
+*       id                = 1
+*       height             = 5.
+*
+*     CALL METHOD o_split->set_row_height
+*     EXPORTING
+*       id                = 2
+*       height            = 8.
+
+
+*   CALL METHOD o_split->set_column_width
+*     EXPORTING
+*       id                = 1
+*       width             = 3.
+*
+*
+*CALL METHOD o_split->set_column_width
+*  EXPORTING
+*    id                = 2
+*    width             = 3.
+
+
+
+************************************Associate Container for each pane
+   CALL METHOD o_split->get_container
+     EXPORTING
+       row       = 1
+       column    = 1
+     RECEIVING
+       container = o_cont1.
+
+   CALL METHOD o_split->get_container
+     EXPORTING
+       row       = 1
+       column    = 2
+     RECEIVING
+       container = o_cont2.
+
+************************************Fetching Data
+   PERFORM GETDATA.
+   IF it_kna1 IS NOT INITIAL.
+     PERFORM SALESDATA.
+     PERFORM FIELDCAT.
+     PERFORM FIELDCAT1.
+     PERFORM DISPLAY.
+   ELSE.
+     MESSAGE 'No data for given input' TYPE 'E'.
+   ENDIF.
+
+  ENDIF.
+ENDMODULE.
+
+MODULE user_command_0100 INPUT.
+  CASE sy-ucomm.
+    WHEN 'BACK'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+
+ENDMODULE.
+
+FORM getdata .
+  SELECT kunnr,
+         land1,
+         name1,
+         ort01
+    FROM kna1
+    INTO TABLE @it_kna1
+    WHERE kunnr IN @so_kunnr.
+
+ENDFORM.
+
+FORM fieldcat .
+  clear wa_fcat.
+  wa_fcat-col_pos = '1'.
+  wa_fcat-fieldname = 'KUNNR'.
+  wa_fcat-scrtext_l = 'Customer Number'.
+  APPEND wa_fcat to it_fcat.
+
+  clear wa_fcat.
+  wa_fcat-col_pos = '2'.
+  wa_fcat-fieldname = 'LAND1'.
+  wa_fcat-scrtext_l = 'Customer Country'.
+  APPEND wa_fcat to it_fcat.
+
+  clear wa_fcat.
+  wa_fcat-col_pos = '3'.
+  wa_fcat-fieldname = 'NAME1'.
+  wa_fcat-scrtext_l = 'Customer Name'.
+  APPEND wa_fcat to it_fcat.
+
+  clear wa_fcat.
+  wa_fcat-col_pos = '4'.
+  wa_fcat-fieldname = 'ORT01'.
+  wa_fcat-scrtext_l = 'Customer City'.
+  APPEND wa_fcat to it_fcat.
+
+  wa_layo-cwidth_opt = 'X'. "width optimization
+
+ENDFORM.
+
+FORM display .
+  IF kna1_grid IS INITIAL.
+    CREATE OBJECT kna1_grid
+      EXPORTING
+        i_parent          = o_cont1.
+
+    CREATE OBJECT vbak_grid
+      EXPORTING
+        i_parent          = o_cont2.
+
+    CALL METHOD kna1_grid->set_table_for_first_display
+      EXPORTING
+        IS_LAYOUT                     = wa_layo
+      CHANGING
+        it_outtab                     = it_kna1
+        it_fieldcatalog               = it_fcat.
+
+    CALL METHOD vbak_grid->set_table_for_first_display
+      EXPORTING
+        is_layout                     = wa_layo1
+     CHANGING
+       it_outtab                     = it_vbak
+       it_fieldcatalog               = it_fcat1.
+  ENDIF.
+
+ENDFORM.
+
+FORM salesdata .
+  SELECT vbeln,
+         erdat,
+         erzet,
+         ernam,
+         kunnr
+    FROM vbak
+    INTO TABLE @it_vbak
+    FOR ALL ENTRIES IN @it_kna1
+    WHERE kunnr = @it_kna1-kunnr.
+
+ENDFORM.
+
+FORM fieldcat1 .
+  CLEAR wa_fcat1.
+  wa_fcat1-col_pos = '1'.
+  wa_fcat1-fieldname = 'VBELN'.
+  wa_fcat1-scrtext_l = 'Sales Order Number'.
+  APPEND wa_fcat1 to it_fcat1.
+
+  CLEAR wa_fcat1.
+  wa_fcat1-col_pos = '2'.
+  wa_fcat1-fieldname = 'ERDAT'.
+  wa_fcat1-scrtext_l = 'Date'.
+  APPEND wa_fcat1 to it_fcat1.
+
+  CLEAR wa_fcat1.
+  wa_fcat1-col_pos = '3'.
+  wa_fcat1-fieldname = 'ERZET'.
+  wa_fcat1-scrtext_l = 'Time'.
+  APPEND wa_fcat1 to it_fcat1.
+
+  CLEAR wa_fcat1.
+  wa_fcat1-col_pos = '4'.
+  wa_fcat1-fieldname = 'ERNAM'.
+  wa_fcat1-scrtext_l = 'Person'.
+  APPEND wa_fcat1 to it_fcat1.
+
+  CLEAR wa_fcat1.
+  wa_fcat1-col_pos = '5'.
+  wa_fcat1-fieldname = 'KUNNR'.
+  wa_fcat1-scrtext_l = 'Customer Number'.
+  APPEND wa_fcat1 to it_fcat1.
+
+  wa_layo1-cwidth_opt = 'X'. "width optimization
+
+ENDFORM.
