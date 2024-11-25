@@ -1,0 +1,108 @@
+*&---------------------------------------------------------------------*
+*& Report ZOOPS_ALV_DKP
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zoops_alv_dkp.
+
+TYPES: BEGIN OF ty_kna1,
+         kunnr TYPE kunnr,
+         land1 TYPE land1_gp,
+         name1 TYPE name1_gp,
+         ort01 TYPE ort01_gp,
+       END OF ty_kna1.
+
+DATA: it_kna1  TYPE TABLE OF ty_kna1,
+      wa_kna1  TYPE ty_kna1,
+      lv_kunnr TYPE kunnr,
+      o_alv    TYPE REF TO cl_gui_alv_grid,
+      o_cust   TYPE REF TO cl_gui_custom_container,
+      it_fcat  TYPE lvc_t_fcat,
+      wa_fcat  TYPE lvc_s_fcat.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME.
+  SELECT-OPTIONS: so_kunnr FOR lv_kunnr.
+SELECTION-SCREEN END OF BLOCK b1.
+
+START-OF-SELECTION.
+
+  CALL SCREEN 100.
+
+MODULE status_0100 OUTPUT.
+ SET PF-STATUS 'BACK'.
+
+  IF o_alv IS INITIAL.
+    CREATE OBJECT o_cust
+      EXPORTING
+        container_name = 'CUST_CTRL'.
+
+    CREATE OBJECT o_alv
+      EXPORTING
+        i_parent = o_cust.
+
+    PERFORM getdata.
+    IF it_kna1 IS NOT INITIAL.
+      PERFORM fieldcat.
+      PERFORM display.
+    ELSE.
+      MESSAGE 'No data for the given input' TYPE 'E'.
+    ENDIF.
+
+  ENDIF.
+
+ENDMODULE.
+
+MODULE user_command_0100 INPUT.
+
+  case sy-ucomm.
+    when 'BACK'.
+      LEAVE TO SCREEN 0.
+      ENDCASE.
+
+ENDMODULE.
+
+FORM fieldcat .
+  CLEAR wa_fcat.
+  wa_fcat-col_pos = '1'.
+  wa_fcat-fieldname = 'KUNNR'.
+  wa_fcat-scrtext_l = 'Customer Number'.
+  APPEND wa_fcat TO it_fcat.
+
+  CLEAR wa_fcat.
+  wa_fcat-col_pos = '2'.
+  wa_fcat-fieldname = 'LAND1'.
+  wa_fcat-scrtext_l = 'Customer Country'.
+  APPEND wa_fcat TO it_fcat.
+
+  CLEAR wa_fcat.
+  wa_fcat-col_pos = '3'.
+  wa_fcat-fieldname = 'NAME1'.
+  wa_fcat-scrtext_l = 'Customer Name'.
+  APPEND wa_fcat TO it_fcat.
+
+  CLEAR wa_fcat.
+  wa_fcat-col_pos = '4'.
+  wa_fcat-fieldname = 'ort01'.
+  wa_fcat-scrtext_l = 'Customer City'.
+  APPEND wa_fcat TO it_fcat.
+
+
+ENDFORM.
+
+FORM display .
+
+  CALL METHOD o_alv->set_table_for_first_display
+    CHANGING
+      it_outtab                     = it_kna1
+      it_fieldcatalog               = it_fcat.
+
+
+ENDFORM.
+
+FORM getdata .
+  SELECT kunnr land1 name1 ort01
+    FROM kna1 INTO
+    TABLE it_kna1
+    WHERE kunnr IN so_kunnr.
+
+ENDFORM.
