@@ -1,0 +1,156 @@
+REPORT YREPORT_SALV_INTERACTIVEDKP.
+
+TYPES: BEGIN OF ty_kna1,
+        kunnr TYPE kunnr,
+        land1 TYPE land1_gp,
+        name1 TYPE name1_gp,
+        ort01 TYPE ort01_gp,
+       END OF ty_kna1,
+
+       BEGIN OF ty_vbak,
+         vbeln TYPE vbeln_va,
+         erdat TYPE erdat,
+         erzet TYPE erzet,
+         ernam TYPE ernam,
+         kunnr TYPE kunnr,
+       END OF ty_vbak.
+
+
+
+DATA: it_kna1 TYPE TABLE OF ty_kna1,
+      wa_kna1 TYPE ty_kna1,
+      it_vbak TYPE TABLE OF ty_vbak,
+      wa_vbak TYPE ty_vbak.
+DATA lv_kunnr TYPE kunnr.
+DATA o_alv TYPE REF TO cl_salv_table.
+DATA: ex1 TYPE REF TO cx_root,
+      txt1 TYPE string.
+DATA o_alv_cols TYPE REF TO cl_salv_columns_table.
+DATA o_alv_col TYPE REF TO cl_salv_column.
+DATA o_alv_col_table TYPE REF TO cl_salv_column_table.
+DATA o_kna1_events TYPE REF TO cl_salv_events_table.
+DATA o_alv_vbak TYPE REF TO cl_salv_table.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+  SELECT-OPTIONS: so_kunnr for lv_kunnr.
+SELECTION-SCREEN END OF BLOCK b1.
+
+FORM getcustomers .
+  SELECT kunnr,
+         land1,
+         name1,
+         ort01
+    FROM KNA1
+    INTO TABLE @it_kna1
+    WHERE kunnr IN @so_kunnr.
+
+ENDFORM.
+
+CLASS lcl_eventreciver DEFINITION.
+  PUBLIC SECTION.
+    METHODS: handle_link_click FOR EVENT IF_SALV_EVENTS_ACTIONS_TABLE~LINK_CLICK of cl_salv_events_table
+    IMPORTING row column.
+ENDCLASS.
+
+CLASS lcl_eventreciver IMPLEMENTATION.
+  METHOD handle_link_click.
+    CASE column.
+      WHEN 'KUNNR'.
+*        MESSAGE 'Customer Number Selected' TYPE 'I'.
+        READ TABLE it_kna1 INTO wa_kna1 INDEX row TRANSPORTING KUNNR.
+        IF sy-subrc = 0.
+          SELECT vbeln,
+                 erdat,
+                 erzet,
+                 ernam,
+                 kunnr
+            FROM vbak
+            INTO TABLE @it_vbak
+            WHERE kunnr = @wa_kna1-kunnr.
+            IF sy-subrc = 0.
+*              TRY.
+              CALL METHOD cl_salv_table=>factory
+                IMPORTING
+                  r_salv_table   = o_alv_vbak
+                CHANGING
+                  t_table        = it_vbak
+                  .
+*                CATCH cx_salv_msg.
+*              ENDTRY.
+
+              o_alv_vbak->display( ).
+            ELSE.
+              MESSAGE 'This customer is not having any sales orders' TYPE 'I'.
+
+            ENDIF.
+        ENDIF.
+      WHEN OTHERS.
+        MESSAGE 'Click on Customer Number' TYPE 'I'.
+    ENDCASE.
+  ENDMETHOD.
+ENDCLASS.
+
+START-OF-SELECTION.
+
+DATA ob TYPE REF TO lcl_eventreciver.
+
+PERFORM getcustomers.
+
+IF it_kna1 IS NOT INITIAL.
+
+  TRY.
+  CALL METHOD cl_salv_table=>factory
+    IMPORTING
+      r_salv_table   = o_alv
+    CHANGING
+      t_table        = it_kna1
+      .
+    CATCH cx_salv_msg INTO ex1.
+      txt1 = ex1->get_text( ).
+  ENDTRY.
+
+   IF o_alv is bound.
+
+     CALL METHOD o_alv->get_columns
+       RECEIVING
+         value  = o_alv_cols.
+
+*     TRY.
+     CALL METHOD o_alv_cols->get_column
+       EXPORTING
+         columnname = 'KUNNR'
+       receiving
+         value      = o_alv_col.
+*       CATCH cx_salv_not_found.
+*     ENDTRY.
+
+*     o_alv_col = o_alv_cols->get_column( 'KUNNR' ).
+
+      IF o_alv_col IS BOUND.
+***********************type cast the object to ALV column table
+*********************** wedding cast
+        o_alv_col_table ?= o_alv_col.
+        IF o_alv_col_table IS BOUND.
+***********************set the cell type to hotspot
+          CALL METHOD o_alv_col_table->set_cell_type
+            EXPORTING
+              value = if_salv_c_cell_type=>hotspot.
+        ENDIF.
+
+      ENDIF.
+
+***********************Register the handler for executing event handling method
+***********************get the alv event object
+
+     o_kna1_events = o_alv->get_event( ).
+     CREATE OBJECT ob.
+     SET HANDLER ob->handle_link_click for o_kna1_events.
+
+     o_alv->display( ).
+   ENDIF.
+
+
+
+ELSE.
+  MESSAGE 'No customers' TYPE 'I'.
+ENDIF.
