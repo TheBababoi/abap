@@ -1,0 +1,105 @@
+*&---------------------------------------------------------------------*
+*& Report ZSALESORDER_ITEMDKP
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZSALESORDER_ITEMDKP.
+
+*Structure declaration for vbak
+TYPES: BEGIN OF ty_vbak,
+         vbeln TYPE vbak-vbeln,
+         erdat TYPE vbak-erdat,
+         erzet TYPE vbak-erzet,
+         ernam TYPE vbak-ernam,
+       END OF ty_vbak.
+
+*Structure declaration for vbap.
+TYPES: BEGIN OF ty_vbap,
+         vbeln TYPE vbap-vbeln,
+         posnr TYPE vbap-posnr,
+         matnr TYPE vbap-matnr,
+         netwr TYPE vbap-netwr,
+       END OF ty_vbap.
+
+*Internal tables and work areas.
+DATA: it_vbak  TYPE TABLE OF ty_vbak,
+      wa_vbak  TYPE ty_vbak,
+      it_vbap  TYPE TABLE OF ty_vbap,
+      wa_vbap  TYPE ty_vbap,
+      lv_vbeln TYPE vbap-vbeln,
+      it_binding TYPE SALV_T_HIERSEQ_BINDING,
+      wa_binding like LINE OF it_binding.
+
+*Selectio Screen.
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME.
+  SELECT-OPTIONS: so_vbeln FOR lv_vbeln.
+SELECTION-SCREEN END OF BLOCK b1.
+
+START-OF-SELECTION.
+
+PERFORM salesorderdata.
+IF it_vbak IS NOT INITIAL.
+  PERFORM salesorderitem.
+  IF it_vbap IS NOT INITIAL.
+    PERFORM BINDING.
+    PERFORM DISPLAY.
+  ENDIF.
+ENDIF.
+
+FORM salesorderdata .
+
+  SELECT vbeln,
+         erdat,
+         erzet,
+         ernam
+    FROM vbak
+    INTO TABLE @it_vbak
+    WHERE vbeln IN @so_vbeln.
+
+ENDFORM.
+
+FORM salesorderitem .
+
+  SELECT vbeln,
+         posnr,
+         matnr,
+         netwr
+    FROM vbap
+    INTO TABLE @it_vbap
+    FOR ALL ENTRIES IN @it_vbak
+    WHERE vbeln = @it_vbak-vbeln.
+
+ENDFORM.
+
+FORM binding .
+  clear wa_binding.
+  wa_binding-master = 'VBELN'.
+  wa_binding-slave = 'VBELN'.
+  APPEND wa_BINDING TO it_binding.
+
+ENDFORM.
+
+FORM display .
+  DATA: o_alv TYPE REF TO cl_salv_hierseq_table.
+  SORT it_vbak BY vbeln.
+  SORT it_vbap BY vbeln.
+
+*  TRY.
+  CALL METHOD cl_salv_hierseq_table=>factory
+    EXPORTING
+      t_binding_level1_level2 = it_binding
+    IMPORTING
+      r_hierseq               = o_alv
+    changing
+      t_table_level1          = it_vbak
+      t_table_level2          = it_vbap.
+*    CATCH cx_salv_data_error.
+*    CATCH cx_salv_not_found.
+*  ENDTRY.
+
+  if o_alv IS BOUND.
+    o_alv->display( ).
+  ENDIF.
+
+
+ENDFORM.
